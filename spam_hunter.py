@@ -1,16 +1,19 @@
 import os
 from sys import stdout
+import math
 from collections import Counter
 import pickle
 import numpy as np
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score
 
 class SpamHunter(object):
 
     def __init__(self, train_dir, test_ratio, slices_count, debug=False):
         self.debug = debug
+        self.dict_size = 3000
         [self.emails_size, self.emails_train, self.emails_test, self.train_labels, self.test_labels] = self.process_files(train_dir, test_ratio, slices_count)
         print("Creating dictionary")
         self.dictionary = self.make_Dictionary(self.emails_train)
@@ -25,9 +28,8 @@ class SpamHunter(object):
             try:
                 with open(email, encoding="utf8", errors='ignore') as m:
                     for i, line in enumerate(m):
-                        if i == 2:  #B ody of email is only 3rd line of text file
-                            words = line.split()
-                            all_words += words
+                        words = line.split()
+                        all_words += words
             except:
                 if(self.debug):
                     print("Reading error in file: " + str(email))
@@ -40,40 +42,86 @@ class SpamHunter(object):
                 del self.dictionary[item]
             elif len(item) == 1:
                 del self.dictionary[item]
-        self.dictionary = self.dictionary.most_common(3000)
+        self.dictionary = self.dictionary.most_common(self.dict_size)
 
         return self.dictionary
 
-    def extract_features(self, emails):
-        features_matrix = np.zeros((len(emails), 3000))
+    def extract_features(self, emails, use_idf=True):
+        features_matrix = np.zeros((len(emails), self.dict_size))
         docID = 0
-        file_counter = 0
+        df_matrix = np.zeros(self.dict_size)
+        docs_count = len(emails)
         for email in emails:
-            file_counter = file_counter + 1
-            stdout.write("\rExtracting features %d/%d files" % (file_counter, len(emails)))
+            stdout.write("\rExtracting features %d/%d files" % (docID, len(emails)))
             stdout.flush()
             try:
                 with open(email, encoding="utf8", errors='ignore') as m:
                     for i, line in enumerate(m):
-                        if i == 2:
-                            words = line.split()
-                            for word in words:
-                                wordID = 0
-                                for i, d in enumerate(self.dictionary):
-                                    if d[0] == word:
-                                        wordID = i
-                                        features_matrix[docID, wordID] = words.count(word)
-                    docID = docID + 1
+                        words = line.split()
+                        for word in words:
+                            if(word.isalpha() == False or len(word) == 1):
+                                break
+                            for i, dict_word in enumerate(self.dictionary):
+                                if dict_word[0] == word:
+                                    features_matrix[docID, i] = words.count(word)
+                                    break
+                    # Compute document frequency df values
+                    for i in range(0, self.dict_size):
+                        if(features_matrix[docID, i] > 0):
+                            df_matrix[i] += 1
+                    docID += 1
             except:
                 if(self.debug):
                     print("\nReading error in file: " + str(email))
 
+        if(use_idf):
+            self.compute_tf_idf(features_matrix, df_matrix, docs_count)
+
         print("\n")
         return features_matrix
 
+    def compute_tf_idf(self, features_matrix, df_matrix, docs_count):
+        print("\n")
+        for doc_id in range(0, docs_count):
+            stdout.write("\rComputing TF-IDF %d/%d docs" % (doc_id, docs_count))
+            stdout.flush()
+            for i in range(0, self.dict_size):
+                if(features_matrix[doc_id, i] != 0):
+                    features_matrix[doc_id, i] *= math.log(docs_count / df_matrix[i])
+
+    def train_gaussian_nb(self):
+        self.model_gaussian_nb = GaussianNB()
+        print("GaussianNB training")
+        self.model_gaussian_nb.fit(self.train_matrix, self.train_labels)
+
+        print("Test with GaussianNB")
+        test_result = self.test_model(self.model_gaussian_nb, self.test_matrix, self.test_labels)
+
+        return self.model_gaussian_nb, test_result
+
+    def train_nusvc(self):
+        self.model_nusvc = NuSVC(gamma="auto")
+        print("NuSVC training")
+        self.model_nusvc.fit(self.train_matrix, self.train_labels)
+
+        print("Test with NuSVC")
+        test_result = self.test_model(self.model_nusvc, self.test_matrix, self.test_labels)
+
+        return self.model_nusvc, test_result
+
+    def train_svc(self):
+        self.model_svc = SVC(kernel="rbf", C=0.025, probability=True, gamma="auto")
+        print("SVC training")
+        self.model_svc.fit(self.train_matrix, self.train_labels)
+
+        print("Test with SVC")
+        test_result = self.test_model(self.model_svc, self.test_matrix, self.test_labels)
+
+        return self.model_svc, test_result
+
     def train_multinomial_nb(self):
         self.model_multinomial_nb = MultinomialNB()
-        print("MultinomialNB training start")
+        print("MultinomialNB training")
         self.model_multinomial_nb.fit(self.train_matrix, self.train_labels)
 
         print("Test with MultinomialNB")
@@ -82,8 +130,8 @@ class SpamHunter(object):
         return self.model_multinomial_nb, test_result
 
     def train_linear_svc(self):
-        self.model_linear_svc = LinearSVC(max_iter=10000)
-        print("Linear SVC training start")
+        self.model_linear_svc = LinearSVC(max_iter=20000)
+        print("Linear SVC training")
         self.model_linear_svc.fit(self.train_matrix, self.train_labels)
 
         print("Test with Linear SVC")
@@ -93,7 +141,8 @@ class SpamHunter(object):
 
     def test_model(self, model, test_matrix, test_labels):
         result = model.predict(test_matrix)
-        print(confusion_matrix(test_labels, result))
+        print("Accuracy: " + str(accuracy_score(test_labels, result)) + "\n")
+        print("Confusion matrix: " + str(confusion_matrix(test_labels, result)))
         return result
 
     def print_dictionary_line_by_line(self, dictionary):
