@@ -1,3 +1,6 @@
+/Euron-spam/*
+!/Euron-spam/*.gz
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
