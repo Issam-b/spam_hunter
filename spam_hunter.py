@@ -4,8 +4,6 @@ import math
 from collections import Counter
 import pickle
 import numpy as np
-from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
-from sklearn.svm import SVC, NuSVC, LinearSVC
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
 
@@ -41,7 +39,7 @@ class SpamHunter(object):
 
         @param file_name Name of saved file
         """
-        print("Saving processed data to file" + str(file_name) + ".npz")
+        print("Saving processed data to file " + str(file_name) + ".npz")
         np.savez_compressed(str(file_name) + ".npz", dictionary=self.dictionary, train_matrix=self.train_matrix, 
             test_matrix=self.test_matrix, train_labels=self.train_labels, test_labels=self.test_labels)
 
@@ -51,7 +49,7 @@ class SpamHunter(object):
 
         @param file_name Name of file to load
         """
-        print("Loading processed data from file" + str(file_name) + ".npz")
+        print("Loading processed data from file " + str(file_name) + ".npz")
         processed = np.load(str(file_name) + ".npz")
         self.dictionary = processed["dictionary"]
         self.train_matrix = processed["train_matrix"]
@@ -144,79 +142,17 @@ class SpamHunter(object):
                 if(features_matrix[doc_id, i] != 0):
                     features_matrix[doc_id, i] *= math.log(docs_count / df_matrix[i])
 
-    def train_gaussian_nb(self):
+    def train_model(self, model, model_name):
         """
-        Train spam hunter using Gaussian NB classifier
+        Train spam hunter using given model
         """
-        self.model_gaussian_nb = GaussianNB()
-        test_result = []
-        print("GaussianNB training")
-        try:
-            self.model_gaussian_nb.fit(self.train_matrix, self.train_labels)
-            print("Test with GaussianNB")
-            test_result = self.test_model(self.model_gaussian_nb, self.test_matrix, self.test_labels)
-        except Exception as e:
-            print("Training error: " + str(e))
+        print(str(model_name) + " training")
+        model.fit(self.train_matrix, self.train_labels)
 
-        return self.model_gaussian_nb, test_result
+        print("Test with " + str(model_name))
+        test_result = self.test_model(model, self.test_matrix, self.test_labels)
 
-    def train_nusvc(self):
-        """
-        Train spam hunter using NuSVC classifier
-        """
-        self.model_nusvc = NuSVC(gamma="auto")
-        test_result = []
-        print("NuSVC training")
-        try:    
-            self.model_nusvc.fit(self.train_matrix, self.train_labels)
-            print("Test with NuSVC")
-            test_result = self.test_model(self.model_nusvc, self.test_matrix, self.test_labels)
-        except Exception as e:
-            print("Training error: " + str(e))
-
-        return self.model_nusvc, test_result
-
-    def train_svc(self):
-        """
-        Train spam hunter using SVC classifier
-        """
-        self.model_svc = SVC(kernel="rbf", C=0.025, probability=True, gamma="auto")
-        test_result = []
-        print("SVC training")
-        try:
-            self.model_svc.fit(self.train_matrix, self.train_labels)
-            print("Test with SVC")
-            test_result = self.test_model(self.model_svc, self.test_matrix, self.test_labels)
-        except Exception as e:
-            print("Training error: " + str(e))
-
-        return self.model_svc, test_result
-
-    def train_multinomial_nb(self):
-        """
-        Train spam hunter using Multinomial NB classifier
-        """
-        self.model_multinomial_nb = MultinomialNB()
-        print("MultinomialNB training")
-        self.model_multinomial_nb.fit(self.train_matrix, self.train_labels)
-
-        print("Test with MultinomialNB")
-        test_result = self.test_model(self.model_multinomial_nb, self.test_matrix, self.test_labels)
-
-        return self.model_multinomial_nb, test_result
-
-    def train_linear_svc(self):
-        """
-        Train spam hunter using Linear SCV classifier
-        """
-        self.model_linear_svc = LinearSVC(max_iter=20000)
-        print("Linear SVC training")
-        self.model_linear_svc.fit(self.train_matrix, self.train_labels)
-
-        print("Test with Linear SVC")
-        test_result = self.test_model(self.model_linear_svc, self.test_matrix, self.test_labels)
-
-        return self.model_linear_svc, test_result
+        return model, test_result
 
     def test_model(self, model, test_matrix, test_labels):
         """
