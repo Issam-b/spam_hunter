@@ -2,10 +2,13 @@ import os
 from sys import stdout
 import math
 from collections import Counter
-import pickle
 import numpy as np
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+import re
 
 class SpamHunter(object):
 
@@ -68,20 +71,22 @@ class SpamHunter(object):
             try:
                 with open(email, encoding="utf8", errors='ignore') as m:
                     for i, line in enumerate(m):
-                        words = line.split()
-                        all_words += words
+                        if len(line) > 0: # starting from line 2
+                            words = line.split()
+                            if i == 0:
+                                words.pop(0)
+                            all_words += words
             except:
                 if(self.debug):
                     print("Reading error in file: " + str(email))
-            
+        
+        stop_words = stopwords.words('english')
+        all_words = [word for word in all_words if word not in stop_words and word.isalpha() and len(word) > 1]
+
+        stemmer = PorterStemmer()
+        all_words = [stemmer.stem(word) for word in all_words]
         self.dictionary = Counter(all_words)
 
-        list_to_remove = self.dictionary.keys()
-        for item in list(list_to_remove):
-            if item.isalpha() == False: 
-                del self.dictionary[item]
-            elif len(item) == 1:
-                del self.dictionary[item]
         self.dictionary = self.dictionary.most_common(self.dict_size)
 
         return self.dictionary
@@ -93,28 +98,47 @@ class SpamHunter(object):
         @param emails List of email paths
         @param use_idf if True, use IF-IDF as features not only word frequency
         """
-        features_matrix = np.zeros((len(emails), self.dict_size))
+        features_matrix = np.zeros((len(emails), self.dict_size + 2))
         docID = 0
         df_matrix = np.zeros(self.dict_size)
         docs_count = len(emails)
+        url_regex = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+
+        stop_words = stopwords.words('english')
+        stemmer = PorterStemmer()
         for email in emails:
+            num_words = 0
             stdout.write("\rExtracting features %d/%d files" % (docID, len(emails)))
             stdout.flush()
             try:
                 with open(email, encoding="utf8", errors='ignore') as m:
                     for i, line in enumerate(m):
-                        words = line.split()
-                        for word in words:
-                            if(word.isalpha() == False or len(word) == 1):
-                                break
-                            for i, dict_word in enumerate(self.dictionary):
-                                if dict_word[0] == word:
-                                    features_matrix[docID, i] = words.count(word)
-                                    break
+                        if len(line) > 0: # starting from line 2
+                            words = line.split()
+                            if i == 0:
+                                words.pop(0)
+                            num_words += len(words)
+                            words = [word for word in words if word not in stop_words and word.isalpha() and len(word) > 1]
+                            words = [stemmer.stem(word) for word in words]
+
+                            for word in words:
+                                for j, dict_word in enumerate(self.dictionary):
+                                    if dict_word[0] == word:
+                                        features_matrix[docID, j] = words.count(word)
+                                        break
+
+                            # Count URLs number in current line
+                            urls = re.findall(url_regex, line)
+                            if len(urls) > 0:
+                                features_matrix[docID, self.dict_size] += len(urls)
+                            
+                            # Number of words in line
+                            features_matrix[docID, self.dict_size + 1] += num_words
+
                     # Compute document frequency df values
-                    for i in range(0, self.dict_size):
-                        if(features_matrix[docID, i] > 0):
-                            df_matrix[i] += 1
+                    for x in range(0, self.dict_size):
+                        if(features_matrix[docID, x] > 0):
+                            df_matrix[x] += 1
                     docID += 1
             except:
                 if(self.debug):

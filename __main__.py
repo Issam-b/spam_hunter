@@ -27,7 +27,7 @@ nltk.download('punkt')
 
 if __name__ == "__main__":
     # Use SpamHunter('Euron-spam', 40, 1, False) to process data again
-    hunter = SpamHunter('Euron-spam', 40, 6, True)
+    hunter = SpamHunter('Euron-spam', 40, 6, False)
 
     # # Naive Bayes based models
     [multinomial_nb_model, multi_nb_test_result] = hunter.train_model(MultinomialNB(), "MultinomialNB")
