@@ -7,7 +7,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
 import re
 
 class SpamHunter(object):
@@ -83,8 +83,8 @@ class SpamHunter(object):
         stop_words = stopwords.words('english')
         all_words = [word for word in all_words if word not in stop_words and word.isalpha() and len(word) > 1]
 
-        stemmer = PorterStemmer()
-        all_words = [stemmer.stem(word) for word in all_words]
+        lemmatizer = WordNetLemmatizer()
+        all_words = [lemmatizer.lemmatize(word) for word in all_words]
         self.dictionary = Counter(all_words)
 
         self.dictionary = self.dictionary.most_common(self.dict_size)
@@ -105,7 +105,7 @@ class SpamHunter(object):
         url_regex = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
 
         stop_words = stopwords.words('english')
-        stemmer = PorterStemmer()
+        lemmatizer = WordNetLemmatizer()
         for email in emails:
             num_words = 0
             stdout.write("\rExtracting features %d/%d files" % (docID, len(emails)))
@@ -119,7 +119,7 @@ class SpamHunter(object):
                                 words.pop(0)
                             num_words += len(words)
                             words = [word for word in words if word not in stop_words and word.isalpha() and len(word) > 1]
-                            words = [stemmer.stem(word) for word in words]
+                            words = [lemmatizer.lemmatize(word) for word in words]
 
                             for word in words:
                                 for j, dict_word in enumerate(self.dictionary):

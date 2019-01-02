@@ -41,7 +41,6 @@ if __name__ == "__main__":
 
     # Stochastic Gradient Descent based models
     [sgd_model, sgd_test_result] = hunter.train_model(SGDClassifier(loss="hinge", penalty="l2", max_iter=2000, tol=0.001, shuffle=True), "Stochastic Gradient Descent")
-    [sscaler_model, sscaler_test_result] = hunter.train_model(StandardScaler(), "Sandard Scaler")
 
     # KNN based model
     [ncentroid_model, ncentroid_test_result] = hunter.train_model(NearestCentroid(), "Nearest Centroid")
