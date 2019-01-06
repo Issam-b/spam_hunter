@@ -206,8 +206,8 @@ class SpamHunter(object):
         spam_size = len(emails_spam)
         ham_size = len(emails_ham)
         print("Total emails: " + str(emails_size) + " - Hams: " + str(ham_size) + " - Spams: " + str(spam_size))
-        spam_split = round(spam_size * (100 - test_ratio) / 100)
-        ham_split = round(ham_size * (100 - test_ratio) / 100)
+        spam_split = int(round(spam_size * (100 - test_ratio) / 100))
+        ham_split = int(round(ham_size * (100 - test_ratio) / 100))
         train_spam_emails = emails_spam[:spam_split]
         train_ham_emails = emails_ham[:ham_split]
         emails_train = train_spam_emails + train_ham_emails
