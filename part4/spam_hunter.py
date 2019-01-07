@@ -10,6 +10,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
 from textblob import TextBlob
+from textblob import Word
 import pandas as pd
 
 class SpamHunter(object):
@@ -96,7 +97,7 @@ class SpamHunter(object):
         @param emails List of email paths
         @param use_idf if True, use IF-IDF as features not only word frequency
         """
-        features_matrix = np.zeros((len(emails), self.dict_size + 5))
+        features_matrix = np.zeros((len(emails), self.dict_size + 6))
         docID = 0
         df_matrix = np.zeros(self.dict_size)
         docs_count = len(emails)
@@ -141,22 +142,29 @@ class SpamHunter(object):
 
                             # F2 Number of language mistakes
                             for word in words:
-                                if word.upper() in names:
-                                    features_matrix[docID, self.dict_size + 1] +=1
+                                w = Word(word)
+                                var = w.spellcheck()
+                                if var[0][1] <= 0.5:
+                                    features_matrix[docID, self.dict_size + 1] += 1
 
                             # F3 Number of words in line
                             features_matrix[docID, self.dict_size + 2] += num_words
+
+                            # F4 Number of named entities
+                            for word in words:
+                                if word.upper() in names:
+                                    features_matrix[docID, self.dict_size + 3] +=1
 
                             # F5 Count valid URLs number in current line
                             for word in words:
                                 var = re.match(url_regex, word)
                                 if var is not None:
                                     if var == True:
-                                        features_matrix[docID, self.dict_size + 3] +=1                          
+                                        features_matrix[docID, self.dict_size + 4] +=1                          
 
                             # F6 Number of pronouns
                             wiki = TextBlob(line)
-                            features_matrix[docID, self.dict_size + 4] += len(wiki.tags)
+                            features_matrix[docID, self.dict_size + 5] += len(wiki.tags)
 
 
                     # Compute document frequency df values
