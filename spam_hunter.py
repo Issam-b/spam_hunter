@@ -9,10 +9,13 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
+from textblob import TextBlob
+from textblob import Word
+import pandas as pd
 
 class SpamHunter(object):
 
-    def __init__(self, train_dir, test_ratio, slices_count, use_processed=True, debug=False):
+    def __init__(self, train_dir, test_ratio, slices_count, use_processed=True, use_extra_features=False, debug=False):
         """
         Init for SpamHunter class, it calls methods to create words dictionary,
         create train and test datasets and extract their features.
@@ -25,13 +28,23 @@ class SpamHunter(object):
         if(use_processed == False):
             self.debug = debug
             self.dict_size = 3000
-            [self.emails_train, self.emails_test, self.train_labels, self.test_labels] = self.process_files(train_dir, test_ratio, slices_count)
+            [self.emails_train, self.emails_test, self.train_labels,
+                self.test_labels] = self.process_files(train_dir, test_ratio, slices_count)
             print("Creating dictionary")
             self.dictionary = self.make_Dictionary(self.emails_train)
-            print("Extracting features for training")
-            self.train_matrix = self.extract_features(self.emails_train)
-            print("Extracting features for testing")
-            self.test_matrix = self.extract_features(self.emails_test)
+            
+            if (use_extra_features == False):
+                print("Extracting features for training")
+                self.train_matrix = self.extract_features(self.emails_train)
+                print("Extracting features for testing")
+                self.test_matrix = self.extract_features(self.emails_test)
+            else:
+                print("Extracting features for training")
+                self.train_matrix = self.extract_extra_features(self.emails_train)
+                print("Extracting features for testing")
+                self.test_matrix = self.extract_extra_features(self.emails_test)
+            
+            
             self.save_processed_datasets("processed_datasets")
         else:
             self.load_processed_datasets("processed_datasets")
@@ -43,8 +56,8 @@ class SpamHunter(object):
         @param file_name Name of saved file
         """
         print("Saving processed data to file " + str(file_name) + ".npz")
-        np.savez_compressed(str(file_name) + ".npz", dictionary=self.dictionary, train_matrix=self.train_matrix, 
-            test_matrix=self.test_matrix, train_labels=self.train_labels, test_labels=self.test_labels)
+        np.savez_compressed(str(file_name) + ".npz", dictionary=self.dictionary, train_matrix=self.train_matrix,
+                            test_matrix=self.test_matrix, train_labels=self.train_labels, test_labels=self.test_labels)
 
     def load_processed_datasets(self, file_name):
         """
@@ -58,7 +71,7 @@ class SpamHunter(object):
         self.train_matrix = processed["train_matrix"]
         self.test_matrix = processed["test_matrix"]
         self.train_labels = processed["train_labels"]
-        self.test_labels = processed["test_labels"] 
+        self.test_labels = processed["test_labels"]
 
     def make_Dictionary(self, emails):
         """
@@ -71,7 +84,7 @@ class SpamHunter(object):
             try:
                 with open(email, encoding="utf8", errors='ignore') as m:
                     for i, line in enumerate(m):
-                        if len(line) > 0: # starting from line 2
+                        if len(line) > 0:  # starting from line 2
                             words = line.split()
                             if i == 0:
                                 words.pop(0)
@@ -79,9 +92,10 @@ class SpamHunter(object):
             except:
                 if(self.debug):
                     print("Reading error in file: " + str(email))
-        
+
         stop_words = stopwords.words('english')
-        all_words = [word for word in all_words if word not in stop_words and word.isalpha() and len(word) > 1]
+        all_words = [word for word in all_words if word not in stop_words and word.isalpha(
+        ) and len(word) > 1]
 
         lemmatizer = WordNetLemmatizer()
         all_words = [lemmatizer.lemmatize(word) for word in all_words]
@@ -108,32 +122,138 @@ class SpamHunter(object):
         lemmatizer = WordNetLemmatizer()
         for email in emails:
             num_words = 0
-            stdout.write("\rExtracting features %d/%d files" % (docID, len(emails)))
+            stdout.write("\rExtracting features %d/%d files" %
+                         (docID, len(emails)))
             stdout.flush()
             try:
                 with open(email, encoding="utf8", errors='ignore') as m:
                     for i, line in enumerate(m):
-                        if len(line) > 0: # starting from line 2
+                        if len(line) > 0:  # starting from line 2
                             words = line.split()
                             if i == 0:
                                 words.pop(0)
                             num_words += len(words)
-                            words = [word for word in words if word not in stop_words and word.isalpha() and len(word) > 1]
-                            words = [lemmatizer.lemmatize(word) for word in words]
+                            words = [word for word in words if word not in stop_words and word.isalpha(
+                            ) and len(word) > 1]
+                            words = [lemmatizer.lemmatize(
+                                word) for word in words]
 
                             for word in words:
                                 for j, dict_word in enumerate(self.dictionary):
                                     if dict_word[0] == word:
-                                        features_matrix[docID, j] = words.count(word)
+                                        features_matrix[docID,
+                                                        j] = words.count(word)
                                         break
 
                             # Count URLs number in current line
                             urls = re.findall(url_regex, line)
                             if len(urls) > 0:
-                                features_matrix[docID, self.dict_size] += len(urls)
-                            
+                                features_matrix[docID,
+                                                self.dict_size] += len(urls)
+
                             # Number of words in line
-                            features_matrix[docID, self.dict_size + 1] += num_words
+                            features_matrix[docID,
+                                            self.dict_size + 1] += num_words
+
+                    # Compute document frequency df values
+                    for x in range(0, self.dict_size):
+                        if(features_matrix[docID, x] > 0):
+                            df_matrix[x] += 1
+                    docID += 1
+            except:
+                if(self.debug):
+                    print("\nReading error in file: " + str(email))
+
+        if(use_idf):
+            self.compute_tf_idf(features_matrix, df_matrix, docs_count)
+
+        print("\n")
+        return features_matrix
+
+    def extract_extra_features(self, emails, use_idf=True):
+        """
+        Extract features matrix from emails according to the word dictionary we have
+        @param emails List of email paths
+        @param use_idf if True, use IF-IDF as features not only word frequency
+        """
+        features_matrix = np.zeros((len(emails), self.dict_size + 6))
+        docID = 0
+        df_matrix = np.zeros(self.dict_size)
+        docs_count = len(emails)
+        url_regex = re.compile(r'^(?:http|ftp)s?://'  # http:// or https://
+                               # domain...
+                               r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
+                               r'localhost|'  # localhost...
+                               r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+                               r'(?::\d+)?'  # optional port
+                               r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+        names = pd.read_csv("names.csv", delimiter='\t')
+        names = pd.DataFrame(names.values, columns=['names'])
+        names = names['names'].str.split(" ", n=1, expand=True)
+        names = names[0].tolist()
+
+        stop_words = stopwords.words('english')
+        lemmatizer = WordNetLemmatizer()
+        for email in emails:
+            num_words = 0
+            stdout.write("\rExtracting features %d/%d files" %
+                         (docID, len(emails)))
+            stdout.flush()
+            try:
+                with open(email, encoding="utf8", errors='ignore') as m:
+                    for i, line in enumerate(m):
+                        if len(line) > 0:  # starting from line 2
+                            words = line.split()
+                            if i == 0:
+                                words.pop(0)
+                            num_words += len(words)
+                            words = [word for word in words if word not in stop_words and word.isalpha(
+                            ) and len(word) > 1]
+                            words = [lemmatizer.lemmatize(
+                                word) for word in words]
+
+                            for word in words:
+                                for j, dict_word in enumerate(self.dictionary):
+                                    if dict_word[0] == word:
+                                        features_matrix[docID,
+                                                        j] = words.count(word)
+                                        break
+                            # F1 Count number of URLs number in current line
+                            for word in words:
+                                if len(word) > 3 and word[0] == 'h' and word[1] == 't' and word[2] == 't' and word[3] == 'p':
+                                    features_matrix[docID, self.dict_size] += 1
+
+                            # F2 Number of language mistakes
+                            for word in words:
+                                w = Word(word)
+                                var = w.spellcheck()
+                                if var[0][1] <= 0.5:
+                                    features_matrix[docID,
+                                                    self.dict_size + 1] += 1
+
+                            # F3 Number of words in line
+                            features_matrix[docID,
+                                            self.dict_size + 2] += num_words
+
+                            # F4 Number of named entities
+                            for word in words:
+                                if word.upper() in names:
+                                    features_matrix[docID,
+                                                    self.dict_size + 3] += 1
+
+                            # F5 Count valid URLs number in current line
+                            for word in words:
+                                var = re.match(url_regex, word)
+                                if var is not None:
+                                    if var == True:
+                                        features_matrix[docID,
+                                                        self.dict_size + 4] += 1
+
+                            # F6 Number of pronouns
+                            wiki = TextBlob(line)
+                            features_matrix[docID,
+                                            self.dict_size + 5] += len(wiki.tags)
 
                     # Compute document frequency df values
                     for x in range(0, self.dict_size):
@@ -160,11 +280,13 @@ class SpamHunter(object):
         """
         print("\n")
         for doc_id in range(0, docs_count):
-            stdout.write("\rComputing TF-IDF %d/%d docs" % (doc_id, docs_count))
+            stdout.write("\rComputing TF-IDF %d/%d docs" %
+                         (doc_id, docs_count))
             stdout.flush()
             for i in range(0, self.dict_size):
                 if(features_matrix[doc_id, i] != 0):
-                    features_matrix[doc_id, i] *= math.log(docs_count / df_matrix[i])
+                    features_matrix[doc_id,
+                                    i] *= math.log(docs_count / df_matrix[i])
 
     def train_model(self, model, model_name):
         """
@@ -174,7 +296,8 @@ class SpamHunter(object):
         model.fit(self.train_matrix, self.train_labels)
 
         print("Test with " + str(model_name))
-        test_result = self.test_model(model, self.test_matrix, self.test_labels)
+        test_result = self.test_model(
+            model, self.test_matrix, self.test_labels)
 
         return model, test_result
 
@@ -189,7 +312,8 @@ class SpamHunter(object):
         """
         result = model.predict(test_matrix)
         print("Accuracy: " + str(accuracy_score(test_labels, result)))
-        print("Confusion matrix: " + str(confusion_matrix(test_labels, result)) + "\n")
+        print("Confusion matrix: " +
+              str(confusion_matrix(test_labels, result)) + "\n")
         return result
 
     def process_files(self, mail_root, test_ratio, slices_count):
@@ -200,12 +324,14 @@ class SpamHunter(object):
         @param test_ratio Ratio with which with to divide train and test sets
         @param slices_count Number of part of set to consider
         """
-        [emails_spam, emails_ham] = self.get_list_files_euron(mail_root, slices_count)
+        [emails_spam, emails_ham] = self.get_list_files_euron(
+            mail_root, slices_count)
 
         emails_size = len(emails_ham + emails_spam)
         spam_size = len(emails_spam)
         ham_size = len(emails_ham)
-        print("Total emails: " + str(emails_size) + " - Hams: " + str(ham_size) + " - Spams: " + str(spam_size))
+        print("Total emails: " + str(emails_size) + " - Hams: " +
+              str(ham_size) + " - Spams: " + str(spam_size))
         spam_split = int(round(spam_size * (100 - test_ratio) / 100))
         ham_split = int(round(ham_size * (100 - test_ratio) / 100))
         train_spam_emails = emails_spam[:spam_split]
@@ -234,7 +360,9 @@ class SpamHunter(object):
         for i in range(1, slices_count + 1):
             ham_path = mail_root + "/enron" + str(i) + "/ham"
             spam_path = mail_root + "/enron" + str(i) + "/spam"
-            emails_ham += [os.path.join(ham_path, file_in) for file_in in os.listdir(ham_path)]
-            emails_spam += [os.path.join(spam_path, file_in) for file_in in os.listdir(spam_path)]
+            emails_ham += [os.path.join(ham_path, file_in)
+                           for file_in in os.listdir(ham_path)]
+            emails_spam += [os.path.join(spam_path, file_in)
+                            for file_in in os.listdir(spam_path)]
 
         return emails_spam, emails_ham
