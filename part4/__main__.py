@@ -32,16 +32,9 @@ if __name__ == "__main__":
     # Part 4
 
     [multinomial_nb_model, multi_nb_test_result] = hunter.train_model(MultinomialNB(), "MultinomialNB")
-    #[linear_svc_model, linear_test_result] = hunter.train_F1_6_model(LinearSVC(max_iter=20000), "Linear SVC")
-    #[sgd_model, sgd_test_result] = hunter.train_F1_6_model(SGDClassifier(loss="hinge", penalty="l2", max_iter=2000, tol=0.001, shuffle=True), "Stochastic Gradient Descent")
-    #[dtree_model, dtree_test_result] = hunter.train_F1_6_model(tree.DecisionTreeClassifier(), "Decision Tree")
-    #[nnet_model, nnet_test_result] = hunter.train_F1_6_model(MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1), "Neural Networks")
-
-    # Part 5
-    #[multinomial_nb_model, multi_nb_test_result] = hunter.train_pca_model(MultinomialNB(), "MultinomialNB")
-    #[linear_svc_model, linear_test_result] = hunter.train_pca_model(LinearSVC(max_iter=20000), "Linear SVC")
-    #[sgd_model, sgd_test_result] = hunter.train_pca_model(SGDClassifier(loss="hinge", penalty="l2", max_iter=2000, tol=0.001, shuffle=True), "Stochastic Gradient Descent")
-    #[dtree_model, dtree_test_result] = hunter.train_pca_model(tree.DecisionTreeClassifier(), "Decision Tree")
-    #[nnet_model, nnet_test_result] = hunter.train_pca_model(MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1), "Neural Networks")
+    [linear_svc_model, linear_test_result] = hunter.train_F1_6_model(LinearSVC(max_iter=20000), "Linear SVC")
+    [sgd_model, sgd_test_result] = hunter.train_F1_6_model(SGDClassifier(loss="hinge", penalty="l2", max_iter=2000, tol=0.001, shuffle=True), "Stochastic Gradient Descent")
+    [dtree_model, dtree_test_result] = hunter.train_F1_6_model(tree.DecisionTreeClassifier(), "Decision Tree")
+    [nnet_model, nnet_test_result] = hunter.train_F1_6_model(MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1), "Neural Networks")
 
 

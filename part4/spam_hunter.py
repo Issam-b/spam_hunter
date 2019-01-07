@@ -10,6 +10,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
 from textblob import TextBlob
+import pandas as pd
 
 class SpamHunter(object):
 
@@ -95,7 +96,7 @@ class SpamHunter(object):
         @param emails List of email paths
         @param use_idf if True, use IF-IDF as features not only word frequency
         """
-        features_matrix = np.zeros((len(emails), self.dict_size + 4))
+        features_matrix = np.zeros((len(emails), self.dict_size + 5))
         docID = 0
         df_matrix = np.zeros(self.dict_size)
         docs_count = len(emails)
@@ -105,6 +106,11 @@ class SpamHunter(object):
                     r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
                     r'(?::\d+)?' # optional port
                     r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+        names = pd.read_csv("names.csv", delimiter='\t')
+        names = pd.DataFrame(names.values, columns=['names'])
+        names = names['names'].str.split(" ", n = 1, expand = True) 
+        names = names[0].tolist()
 
         stop_words = stopwords.words('english')
         lemmatizer = WordNetLemmatizer()
@@ -133,19 +139,24 @@ class SpamHunter(object):
                                 if len(word) > 3 and word[0] == 'h' and word[1] == 't' and word[2] =='t' and word[3] == 'p':
                                     features_matrix[docID, self.dict_size ] +=1
 
+                            # F2 Number of language mistakes
+                            for word in words:
+                                if word.upper() in names:
+                                    features_matrix[docID, self.dict_size + 1] +=1
+
                             # F3 Number of words in line
-                            features_matrix[docID, self.dict_size + 1] += num_words
+                            features_matrix[docID, self.dict_size + 2] += num_words
 
                             # F5 Count valid URLs number in current line
                             for word in words:
                                 var = re.match(url_regex, word)
                                 if var is not None:
                                     if var == True:
-                                        features_matrix[docID, self.dict_size + 2] +=1                          
+                                        features_matrix[docID, self.dict_size + 3] +=1                          
 
                             # F6 Number of pronouns
                             wiki = TextBlob(line)
-                            features_matrix[docID, self.dict_size + 3] += len(wiki.tags)
+                            features_matrix[docID, self.dict_size + 4] += len(wiki.tags)
 
 
                     # Compute document frequency df values
